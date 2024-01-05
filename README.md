@@ -1,6 +1,6 @@
 ## Clink: A Configurable HTTP Client for Go
 
-Clink is a highly configurable HTTP client for Go, designed for ease of use, extendability, and robustness. It supports various features like automatic retries, request rate limiting, and customisable middlewares, making it ideal for both simple and advanced HTTP requests.
+Clink is a highly configurable HTTP client for Go, designed for ease of use, extendability, and robustness. It supports various features like automatic retries and request rate limiting, making it ideal for both simple and advanced HTTP requests.
 
 ### Features
 - **Flexible Request Options**: Easily configure headers, URLs, and authentication.
