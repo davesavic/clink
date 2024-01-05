@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestNewClient(t *testing.T) {
@@ -176,6 +177,54 @@ func TestClient_Do(t *testing.T) {
 				return target["key"] == "value"
 			},
 		},
+		{
+			name: "successful response with json body and custom headers",
+			opts: []clink.Option{
+				clink.WithHeaders(map[string]string{"key": "value"}),
+			},
+			setupServer: func() *httptest.Server {
+				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if r.Header.Get("key") != "value" {
+						w.WriteHeader(http.StatusBadRequest)
+					}
+
+					_ = json.NewEncoder(w).Encode(map[string]string{"key": "value"})
+				}))
+			},
+			resultFunc: func(response *http.Response, err error) bool {
+				var target map[string]string
+				er := clink.ResponseToJson(response, &target)
+				if er != nil {
+					return false
+				}
+
+				return target["key"] == "value"
+			},
+		},
+		{
+			name: "successful response with json body and custom header",
+			opts: []clink.Option{
+				clink.WithHeader("key", "value"),
+			},
+			setupServer: func() *httptest.Server {
+				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if r.Header.Get("key") != "value" {
+						w.WriteHeader(http.StatusBadRequest)
+					}
+
+					_ = json.NewEncoder(w).Encode(map[string]string{"key": "value"})
+				}))
+			},
+			resultFunc: func(response *http.Response, err error) bool {
+				var target map[string]string
+				er := clink.ResponseToJson(response, &target)
+				if er != nil {
+					return false
+				}
+
+				return target["key"] == "value"
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -277,5 +326,100 @@ func TestClient_ResponseToJson(t *testing.T) {
 				t.Errorf("expected result to be successful")
 			}
 		})
+	}
+}
+
+func TestRateLimiter(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	client := clink.NewClient(
+		clink.WithRateLimit(60),
+		clink.WithClient(server.Client()),
+	)
+
+	startTime := time.Now()
+
+	for i := 0; i < 2; i++ {
+		req, err := http.NewRequest(http.MethodGet, server.URL, nil)
+		if err != nil {
+			t.Errorf("failed to create request: %v", err)
+		}
+
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Errorf("failed to make request: %v", err)
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("expected status code to be 200")
+		}
+	}
+
+	elapsedTime := time.Since(startTime)
+	if elapsedTime.Seconds() < 0.5 || elapsedTime.Seconds() > 1.5 {
+		t.Errorf("expected elapsed time to be between 0.5 and 1.5 seconds, got: %f", elapsedTime.Seconds())
+	}
+}
+
+func TestSuccessfulRetries(t *testing.T) {
+	var requestCount int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++ // Increment the request count
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	retryCount := 3
+	client := clink.NewClient(
+		clink.WithRetries(retryCount, func(request *http.Request, response *http.Response, err error) bool {
+			// Check if the response is a 500 Internal Server Error
+			return response != nil && response.StatusCode == http.StatusInternalServerError
+		}),
+		clink.WithClient(server.Client()),
+	)
+
+	req, err := http.NewRequest(http.MethodGet, server.URL, nil)
+	if err != nil {
+		t.Fatalf("failed to create request: %v", err)
+	}
+
+	_, err = client.Do(req)
+	if err != nil {
+		t.Fatalf("failed to make request: %v", err)
+	}
+
+	if requestCount != retryCount+1 { // +1 for the initial request
+		t.Errorf("expected %d retries (total requests: %d), but got %d", retryCount, retryCount+1, requestCount)
+	}
+}
+
+func TestUnsuccessfulRetries(t *testing.T) {
+	var requestCount int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++ // Increment the request count
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	retryCount := 3
+	client := clink.NewClient(
+		clink.WithRetries(retryCount, func(request *http.Request, response *http.Response, err error) bool {
+			return false
+		}),
+		clink.WithClient(server.Client()),
+	)
+
+	req, err := http.NewRequest(http.MethodGet, server.URL, nil)
+	if err != nil {
+		t.Fatalf("failed to create request: %v", err)
+	}
+
+	_, err = client.Do(req)
+
+	if requestCount != 1 { // +1 for the initial request
+		t.Errorf("expected %d retries (total requests: %d), but got %d", retryCount, retryCount+1, requestCount)
 	}
 }

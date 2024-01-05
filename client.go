@@ -51,9 +51,6 @@ func (c *Client) Do(req *http.Request) (*http.Response, error) {
 
 	for attempt := 0; attempt <= c.MaxRetries; attempt++ {
 		resp, err = c.HttpClient.Do(req)
-		if err == nil {
-			break
-		}
 
 		if c.ShouldRetryFunc != nil && !c.ShouldRetryFunc(req, resp, err) {
 			break
@@ -91,7 +88,9 @@ func WithHeader(key, value string) Option {
 // WithHeaders sets the headers for the client.
 func WithHeaders(headers map[string]string) Option {
 	return func(c *Client) {
-		c.Headers = headers
+		for key, value := range headers {
+			c.Headers[key] = value
+		}
 	}
 }
 
@@ -106,13 +105,10 @@ func WithRateLimit(rpm int) Option {
 // WithBasicAuth sets the basic auth header for the client.
 func WithBasicAuth(username, password string) Option {
 	return func(c *Client) {
-		c.Headers["Authorization"] = "Basic " + basicAuth(username, password)
+		auth := username + ":" + password
+		encodedAuth := base64.StdEncoding.EncodeToString([]byte(auth))
+		c.Headers["Authorization"] = "Basic " + encodedAuth
 	}
-}
-
-func basicAuth(username, password string) string {
-	auth := username + ":" + password
-	return base64.StdEncoding.EncodeToString([]byte(auth))
 }
 
 // WithBearerAuth sets the bearer auth header for the client.
@@ -137,6 +133,7 @@ func WithRetries(count int, retryFunc func(*http.Request, *http.Response, error)
 	}
 }
 
+// ResponseToJson decodes the response body into the target.
 func ResponseToJson[T any](response *http.Response, target *T) error {
 	if response == nil {
 		return fmt.Errorf("response is nil")
