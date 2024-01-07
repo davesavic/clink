@@ -11,6 +11,7 @@ import (
 	"golang.org/x/time/rate"
 )
 
+// Client is a wrapper around http.Client with additional functionality.
 type Client struct {
 	HttpClient      *http.Client
 	Headers         map[string]string
@@ -19,6 +20,7 @@ type Client struct {
 	ShouldRetryFunc func(*http.Request, *http.Response, error) bool
 }
 
+// NewClient creates a new client with the given options.
 func NewClient(opts ...Option) *Client {
 	c := defaultClient()
 
@@ -36,6 +38,9 @@ func defaultClient() *Client {
 	}
 }
 
+// Do sends the given request and returns the response.
+// If the request is rate limited, the client will wait for the rate limiter to allow the request.
+// If the request fails, the client will retry the request the number of times specified by MaxRetries.
 func (c *Client) Do(req *http.Request) (*http.Response, error) {
 	for key, value := range c.Headers {
 		req.Header.Set(key, value)
@@ -70,6 +75,7 @@ func (c *Client) Do(req *http.Request) (*http.Response, error) {
 	return resp, nil
 }
 
+// Head sends a HEAD request to the given URL.
 func (c *Client) Head(url string) (*http.Response, error) {
 	req, err := http.NewRequest(http.MethodHead, url, nil)
 	if err != nil {
@@ -78,6 +84,7 @@ func (c *Client) Head(url string) (*http.Response, error) {
 	return c.Do(req)
 }
 
+// Get sends a GET request to the given URL.
 func (c *Client) Options(url string) (*http.Response, error) {
 	req, err := http.NewRequest(http.MethodOptions, url, nil)
 	if err != nil {
@@ -86,6 +93,7 @@ func (c *Client) Options(url string) (*http.Response, error) {
 	return c.Do(req)
 }
 
+// Get sends a GET request to the given URL.
 func (c *Client) Get(url string) (*http.Response, error) {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
@@ -94,6 +102,7 @@ func (c *Client) Get(url string) (*http.Response, error) {
 	return c.Do(req)
 }
 
+// Post sends a POST request to the given URL with the given body.
 func (c *Client) Post(url string, body io.Reader) (*http.Response, error) {
 	req, err := http.NewRequest(http.MethodPost, url, body)
 	if err != nil {
@@ -102,6 +111,7 @@ func (c *Client) Post(url string, body io.Reader) (*http.Response, error) {
 	return c.Do(req)
 }
 
+// Put sends a PUT request to the given URL.
 func (c *Client) Put(url string, body io.Reader) (*http.Response, error) {
 	req, err := http.NewRequest(http.MethodPut, url, body)
 	if err != nil {
@@ -110,6 +120,7 @@ func (c *Client) Put(url string, body io.Reader) (*http.Response, error) {
 	return c.Do(req)
 }
 
+// Patch sends a PATCH request to the given URL.
 func (c *Client) Patch(url string, body io.Reader) (*http.Response, error) {
 	req, err := http.NewRequest(http.MethodPatch, url, body)
 	if err != nil {
@@ -118,6 +129,7 @@ func (c *Client) Patch(url string, body io.Reader) (*http.Response, error) {
 	return c.Do(req)
 }
 
+// Delete sends a DELETE request to the given URL.
 func (c *Client) Delete(url string) (*http.Response, error) {
 	req, err := http.NewRequest(http.MethodDelete, url, nil)
 	if err != nil {

@@ -1,5 +1,5 @@
 [![test](https://github.com/davesavic/clink/workflows/test/badge.svg)](https://github.com/davesavic/clink/actions?query=workflow%3Atest)
-[![coverage](https://coveralls.io/repos/github/davesavic/clink/badge.svg?branch=main)](https://coveralls.io/github/davesavic/clink?branch=main)
+[![coverage](https://coveralls.io/repos/github/davesavic/clink/badge.svg?branch=master)](https://coveralls.io/github/davesavic/clink?branch=master)
 [![goreportcard](https://goreportcard.com/badge/github.com/davesavic/clink)](https://goreportcard.com/report/github.com/davesavic/clink)
 [![gopkg](https://pkg.go.dev/badge/github.com/davesavic/clink.svg)](https://pkg.go.dev/github.com/davesavic/clink)
 [![license](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/davesavic/clink/blob/master/LICENSE)
