@@ -1,0 +1,29 @@
+name: test
+
+on: [push, pull_request]
+
+jobs:
+    test:
+        strategy:
+          matrix:
+            go-version: ['>=1.18.0']
+            os: [ubuntu-latest,]
+        runs-on: ${{ matrix.os }}
+        steps:
+        - name: Install Go
+          uses: actions/setup-go@v2
+          with:
+            go-version: ${{ matrix.go-version }}
+        - name: Checkout code
+          uses: actions/checkout@v2
+        - name: Unshallow git checkout
+          run:  git fetch --prune --unshallow
+        - name: Run tests
+          run: go test -v -covermode=count -coverprofile=coverage.out ./...
+        - name: Convert coverage to lcov
+          uses: jandelgado/gcov2lcov-action@v1.0.5
+        - name: Report coverage
+          uses: coverallsapp/github-action@master
+          with:
+              github-token: ${{ secrets.GITHUB_TOKEN }}
+              path-to-lcov: coverage.lcov
