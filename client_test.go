@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -347,7 +348,6 @@ func TestClient_Methods(t *testing.T) {
 			if !tc.resultFunc(resp, tc.method) {
 				t.Errorf("expected result to be successful")
 			}
-
 		})
 	}
 }
@@ -521,6 +521,66 @@ func TestUnsuccessfulRetries(t *testing.T) {
 
 	if requestCount != 1 { // +1 for the initial request
 		t.Errorf("expected %d retries (total requests: %d), but got %d", retryCount, retryCount+1, requestCount)
+	}
+}
+
+// TestRequestBodyEmptyOnRetries tests that the request body on a custom io.Reader wrapper is NOT empty on retries.
+type oneTimeReaderWrapper struct {
+	data     []byte
+	consumed bool
+}
+
+func (r *oneTimeReaderWrapper) Read(p []byte) (n int, err error) {
+	if r.consumed {
+		return 0, fmt.Errorf("body already read")
+	}
+	n = copy(p, r.data)
+	r.consumed = true
+	return n, io.EOF
+}
+
+func TestRequestBodyNotEmptyOnRetries(t *testing.T) {
+	var requestCount int
+	var lastRequestBody string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+
+		bodyBytes, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("failed to read request body: %v", err)
+		}
+		lastRequestBody = string(bodyBytes)
+
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	client := clink.NewClient(
+		clink.WithRetries(1, func(request *http.Request, response *http.Response, err error) bool {
+			return true
+		}),
+		clink.WithClient(server.Client()),
+	)
+
+	requestBody := []byte("test body")
+	req, err := http.NewRequest(http.MethodPost, server.URL, &oneTimeReaderWrapper{data: requestBody})
+	if err != nil {
+		t.Fatalf("failed to create request: %v", err)
+	}
+
+	_, err = client.Do(req)
+	if err != nil {
+		t.Fatalf("failed to make request: %v", err)
+	}
+
+	if requestCount != 2 {
+		t.Fatalf("expected 2 requests due to retry, but got %d", requestCount)
+	}
+
+	expectedBody := string(requestBody)
+	if lastRequestBody != expectedBody {
+		t.Errorf("expected request body to be '%s' on retry, got '%s'", expectedBody, lastRequestBody)
 	}
 }
 

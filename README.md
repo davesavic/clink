@@ -56,7 +56,7 @@ func main() {
 }
 ```
 
-Common *http verbs(HEAD, OPTIONS, GET, HEAD, POST, PATCH, DELETE)* are also supported 
+*HTTP Methods (HEAD, OPTIONS, GET, HEAD, POST, PATCH, DELETE)* are also supported 
 ```go
 package main
 
