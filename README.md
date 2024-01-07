@@ -56,6 +56,24 @@ func main() {
 }
 ```
 
+Common *http verbs(HEAD, OPTIONS, GET, HEAD, POST, PATCH, DELETE)* are also supported 
+```go
+package main
+
+import (
+	"github.com/davesavic/clink"
+	"encoding/json"
+)
+
+func main() {
+    client := clink.NewClient()
+    resp, err := client.Get("https://httpbin.org/get")
+    // ....
+    payload, err := json.Marshal(map[string]string{"username": "yumi"})
+    resp, err := client.Post("https://httpbin.org/post", payload)
+}
+```
+
 ### Examples
 For more examples, see the [examples](https://github.com/davesavic/clink/tree/master/examples) directory.
 

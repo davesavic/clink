@@ -3,13 +3,14 @@ package clink_test
 import (
 	"encoding/base64"
 	"encoding/json"
-	"github.com/davesavic/clink"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/davesavic/clink"
 )
 
 func TestNewClient(t *testing.T) {
@@ -248,6 +249,103 @@ func TestClient_Do(t *testing.T) {
 			if !tc.resultFunc(resp, err) {
 				t.Errorf("expected result to be successful")
 			}
+		})
+	}
+}
+
+func TestClient_Methods(t *testing.T) {
+	serverFunc := func() *httptest.Server {
+		return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Add("X-Method", r.Method)
+		}))
+	}
+	resultFunc := func(r *http.Response, m string) bool {
+		return r.Header.Get("X-Method") == m
+	}
+	testCases := []struct {
+		name        string
+		method      string
+		body        io.Reader
+		setupServer func() *httptest.Server
+		resultFunc  func(*http.Response, string) bool
+	}{
+		{
+			name:        "successful head response",
+			method:      http.MethodHead,
+			setupServer: serverFunc,
+			resultFunc:  resultFunc,
+		},
+		{
+			name:        "successful options response",
+			method:      http.MethodOptions,
+			setupServer: serverFunc,
+			resultFunc:  resultFunc,
+		},
+		{
+			name:        "successful get response",
+			method:      http.MethodGet,
+			setupServer: serverFunc,
+			resultFunc:  resultFunc,
+		},
+		{
+			name:        "successful post response",
+			method:      http.MethodPost,
+			setupServer: serverFunc,
+			resultFunc:  resultFunc,
+		},
+		{
+			name:        "successful put response",
+			method:      http.MethodPut,
+			setupServer: serverFunc,
+			resultFunc:  resultFunc,
+		},
+		{
+			name:        "successful patch response",
+			method:      http.MethodPatch,
+			setupServer: serverFunc,
+			resultFunc:  resultFunc,
+		},
+		{
+			name:        "successful delete response",
+			method:      http.MethodDelete,
+			setupServer: serverFunc,
+			resultFunc:  resultFunc,
+		},
+	}
+
+	call := func(c *clink.Client, method, url string, body io.Reader) (*http.Response, error) {
+		switch method {
+		case http.MethodHead:
+			return c.Head(url)
+		case http.MethodOptions:
+			return c.Options(url)
+		case http.MethodGet:
+			return c.Get(url)
+		case http.MethodPost:
+			return c.Post(url, body)
+		case http.MethodPut:
+			return c.Put(url, body)
+		case http.MethodPatch:
+			return c.Patch(url, body)
+		case http.MethodDelete:
+			return c.Delete(url)
+		}
+		return nil, nil
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			server := tc.setupServer()
+			defer server.Close()
+			c := clink.NewClient(clink.WithClient(server.Client()))
+			if c == nil {
+				t.Error("expected client to be created")
+			}
+			resp, _ := call(c, tc.method, server.URL, tc.body)
+			if !tc.resultFunc(resp, tc.method) {
+				t.Errorf("expected result to be successful")
+			}
+
 		})
 	}
 }
