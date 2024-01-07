@@ -58,13 +58,20 @@ func (c *Client) Do(req *http.Request) (*http.Response, error) {
 	for attempt := 0; attempt <= c.MaxRetries; attempt++ {
 		resp, err = c.HttpClient.Do(req)
 
+		if req.Context().Err() != nil {
+			return nil, fmt.Errorf("request context error: %w", req.Context().Err())
+		}
+
 		if c.ShouldRetryFunc != nil && !c.ShouldRetryFunc(req, resp, err) {
 			break
 		}
 
 		if attempt < c.MaxRetries {
-			// Exponential backoff only if we're going to retry.
-			time.Sleep(time.Duration(attempt) * time.Second)
+			select {
+			case <-time.After(time.Duration(attempt) * time.Second):
+			case <-req.Context().Done():
+				return nil, req.Context().Err()
+			}
 		}
 	}
 

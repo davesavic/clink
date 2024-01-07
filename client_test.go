@@ -1,8 +1,10 @@
 package clink_test
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -519,5 +521,66 @@ func TestUnsuccessfulRetries(t *testing.T) {
 
 	if requestCount != 1 { // +1 for the initial request
 		t.Errorf("expected %d retries (total requests: %d), but got %d", retryCount, retryCount+1, requestCount)
+	}
+}
+
+func TestContextCancellationDuringRetries(t *testing.T) {
+	var requestCount int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		w.WriteHeader(http.StatusInternalServerError) // Always return an error to trigger retries
+	}))
+	defer server.Close()
+
+	client := clink.NewClient(
+		clink.WithRetries(3, func(request *http.Request, response *http.Response, err error) bool {
+			// Always return true to retry
+			return true
+		}),
+		clink.WithClient(server.Client()),
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, server.URL, nil)
+	if err != nil {
+		t.Fatalf("failed to create request: %v", err)
+	}
+
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		cancel()
+	}()
+
+	_, err = client.Do(req)
+
+	if requestCount > 2 {
+		t.Errorf("expected at most 2 requests due to context cancellation, but got %d", requestCount)
+	}
+
+	if err == nil || !errors.Is(err, context.Canceled) {
+		t.Errorf("expected context cancellation error, but got: %v", err)
+	}
+}
+
+func TestRequestWithCanceledContext(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(2 * time.Second) // Simulate a delay in the response
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	client := clink.NewClient(clink.WithClient(server.Client()))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, server.URL, nil)
+	if err != nil {
+		t.Fatalf("failed to create request: %v", err)
+	}
+	cancel() // Cancel the context immediately
+
+	_, err = client.Do(req)
+
+	if err == nil || !errors.Is(err, context.Canceled) {
+		t.Errorf("expected context cancellation error, but got: %v", err)
 	}
 }
